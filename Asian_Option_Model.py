@@ -1,3 +1,6 @@
+# Asian option pricing model implemented using monte carlo simulation (normal and antithetic)
+# and compared against vanilla Black Scholes model
+
 import math
 import numpy as np
 from scipy.stats import norm
@@ -55,15 +58,6 @@ def price_asian_option_antithetic(S0, rD, rF, diffrates, sigma, T, n, m, K):
     return putPrice, stdev
 
 def price_option_BS(S0, rD, rF, diffrates, sigma, T, n, K):
-    # callPrice = 0
-    # putPrice = 0
-    # for i in range(n):
-    #     X=np.random.normal(0, 1)
-    #     ST=S0*math.exp((diffrates-(sigma**2)/2)*T+sigma*math.sqrt(T)*X)
-    #     callPrice+=max(0,ST*math.exp(-rF*T)-K*math.exp(-rD*T))
-    #     # putPrice += max(0, -ST * math.exp(-rF * T) + K * math.exp(-rD * T))
-    # callPrice/=n
-    # putPrice = callPrice + K * math.exp(-rD * T) - S0
     d1=(math.log(S0/K)+(diffrates+(sigma**2)/2)*T)/(sigma*math.sqrt(T))
     d2 = (math.log(S0 / K) + (diffrates - (sigma ** 2) / 2) * T) / (sigma * math.sqrt(T))
     callPrice=S0*norm.cdf(d1)-K*math.exp(-rF*T)*norm.cdf(d2)
@@ -71,6 +65,7 @@ def price_option_BS(S0, rD, rF, diffrates, sigma, T, n, K):
     # print(str(S0) + str(K) + str(r) + str(sigma))
     return putPrice
 
+# The use case is pricing a currency option for the USDINR pair
 def main():
     usdinr=[]
     usdinr_change=[]
@@ -78,13 +73,23 @@ def main():
     diffrates=[]
     ratesD=[]
     ratesF=[]
-
+    
+    # expiry in 12 months
     T=12
 
     wb=excel.open_workbook(filename='India_data.xlsx')
     wb1=Workbook()
     ws1=wb1.add_sheet('Prices')
-
+    
+    # code outputs tons of data to an excel spreadsheet including prices using
+    # 1. Vanilla monte carlo
+    # 2. Antithetic monte carlo
+    # 3. Black Scholes Model
+    # and also outputs the standard error of these price estimations
+    
+    # We simulate 4 different paths with strike prices a few std's away from the actual prevailing price on the date.
+    # The labels below aren't accurate. We settled on different sigma values in the final simulation.
+    
     ws1.write(0, 0, 'Date')
     ws1.write(0, 1, 'USDINR')
     ws1.write(0, 2, 'Vanilla K=-1sigma')
@@ -112,7 +117,7 @@ def main():
     ws1.write(0, 24, 'Std Error Antithetic K=+0.5sigma')
     ws1.write(0, 25, 'Std Error Antithetic K=+1sigma')
 
-    #cell co-ordinates work like array indexes
+    # cell co-ordinates work like array indexes within the spreadsheet
     for i in range(2,121):
         single_usd_inr=wb.sheet_by_name("Sheet1").cell_value(i,3)
         usdinr.append(single_usd_inr)
@@ -132,11 +137,11 @@ def main():
         sigma1 = np.std(usdinr_change[i-12:i-1])
         sigma = np.std(usdinr[i - 12:i - 1])
         mean = np.average(usdinr_change[i-12:i-1])
-        # K=[usdinr[i]*(1+mean-2*sigma1)**12, usdinr[i+T-1]*(1+mean-sigma1)**12, usdinr[i+T-1]*(1+mean+sigma1)**12, usdinr[i+T-1]*(1+mean+2*sigma1)**12]
-        # K = [usdinr[i + 3] - 2 * sigma, usdinr[i + 3] - sigma, usdinr[i + 3] + sigma, usdinr[i + 3] + 2 * sigma]
-        # K = [usdinr[i] - 0.5 * sigma*math.sqrt(T), usdinr[i] - 0.25*sigma*math.sqrt(T), usdinr[i] + 0.25*sigma*math.sqrt(T), usdinr[i] + 0.5 * sigma*math.sqrt(T)]
+        
+        # Strike prices are decided as +/- [0.75, 0.25] sigma from spot price.
+        # Since this is a simulation, we calculate the option price through simulated paths and compare it against the
+        # actual strike price during the selected expiry date to decide if the option is exercised or not.
         K = [usdinr[i] - 0.75 * sigma * math.sqrt(T), usdinr[i] - 0.25 * sigma * math.sqrt(T), usdinr[i] + 0.25 * sigma * math.sqrt(T), usdinr[i] + 0.75 * sigma * math.sqrt(T)]
-        # K = [usdinr[i] - 2 * sigma, usdinr[i] - 1 * sigma, usdinr[i] + 1 * sigma, usdinr[i] + 2 * sigma]
         ws1.write(i, 14, K[0])
         ws1.write(i, 15, K[1])
         ws1.write(i, 16, K[2])
@@ -187,6 +192,7 @@ def main():
 
     wb1.save('Option Prices.xls')
 
+    # finally, we plot all the different option prices from our simulations.
     axis1= plotter.subplot(2,2,1)
     axis1.plot_date(dates[12:len(dates)-T], optionPricesVanilla[:,0], label="-2sigma", linestyle='solid', marker=',')
     axis1.plot_date(dates[12:len(dates)-T], optionPricesVanilla[:,1], label="-1sigma", linestyle='solid', marker=',')
@@ -227,5 +233,3 @@ def main():
 
 if(__name__=="__main__"):
     main()
-
-#print(price_asian_option(100,0.05,0.2,1,100000,5,95))
